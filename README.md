@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dev Note — Nh?t kí tráng film
 
-## Getting Started
+?ng d?ng qu?n lý nh?t kí tráng film, xây d?ng b?ng **Next.js 16 + Supabase + Prisma 5 + Chakra UI 2**.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+| Layer    | Công ngh?                          |
+|----------|------------------------------------|
+| Frontend | Next.js 16 App Router + TypeScript |
+| UI       | Chakra UI v2                       |
+| ORM      | Prisma v5                          |
+| Database | Supabase (PostgreSQL)              |
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Cài d?t
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 1. T?o Supabase project
 
-## Learn More
+Vào supabase.com, t?o project m?i, vào Settings -> Database -> Connection string.
 
-To learn more about Next.js, take a look at the following resources:
+### 2. C?u hình .env
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Ði?n vào file .env ? thu m?c g?c:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+  DATABASE_URL = Transaction pooler URL (port 6543) -- dùng b?i runtime
+  DIRECT_URL   = Direct connection URL (port 5432)  -- dùng b?i prisma migrate
 
-## Deploy on Vercel
+### 3. Migrate database
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+  npx prisma migrate dev --name init
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 4. Ch?y local
+
+  npm run dev
+  # --> http://localhost:3000  (t? redirect v? /log)
+
+---
+
+## Tính nang
+
+- /new  -- Thêm ghi chú: ch?n ho?c t?o m?i khách hàng & film stock ngay trong trang,
+           ch?n quy trình (BW / Ð?o ngu?c / Duong b?n / C41 / ECN2 / E6),
+           nh?p s? lu?ng cu?n và ghi chú tu? ch?n.
+- /log  -- Xem nh?t kí: toggle B?ng <-> Danh sách (m?c d?nh b?ng trên desktop,
+           danh sách trên mobile); l?c theo khách hàng và quy trình.

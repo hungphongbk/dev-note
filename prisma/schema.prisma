@@ -1,0 +1,101 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Process {
+  BW
+  DAO_DUONG
+  C41
+  ECN2
+  E6
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model Customer {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  devNotes  DevNote[]
+  items     DevNoteItem[]
+  createdAt DateTime  @default(now())
+
+  @@map("customers")
+}
+
+model FilmStock {
+  id        Int           @id @default(autoincrement())
+  name      String        @unique
+  films     DevNoteFilm[]
+  items     DevNoteItem[]
+  createdAt DateTime      @default(now())
+
+  @@map("film_stocks")
+}
+
+model DevNote {
+  id         Int           @id @default(autoincrement())
+  customerId Int
+  customer   Customer      @relation(fields: [customerId], references: [id])
+  process    Process
+  rollCount  Int
+  notes      String?
+  films      DevNoteFilm[]
+  items      DevNoteItem[]
+  medBatchId Int?
+  medBatch   MedBatch?     @relation(fields: [medBatchId], references: [id], onDelete: SetNull)
+  createdAt  DateTime      @default(now())
+
+  @@index([medBatchId])
+  @@map("dev_notes")
+}
+
+model DevNoteFilm {
+  devNoteId   Int
+  devNote     DevNote   @relation(fields: [devNoteId], references: [id], onDelete: Cascade)
+  filmStockId Int
+  filmStock   FilmStock @relation(fields: [filmStockId], references: [id])
+
+  @@id([devNoteId, filmStockId])
+  @@map("dev_note_films")
+}
+
+model DevNoteItem {
+  id          Int       @id @default(autoincrement())
+  devNoteId   Int
+  devNote     DevNote   @relation(fields: [devNoteId], references: [id], onDelete: Cascade)
+  customerId  Int
+  customer    Customer  @relation(fields: [customerId], references: [id])
+  filmStockId Int
+  filmStock   FilmStock @relation(fields: [filmStockId], references: [id])
+  quantity    Int       @default(1)
+  createdAt   DateTime  @default(now())
+
+  @@unique([devNoteId, customerId, filmStockId])
+  @@index([devNoteId])
+  @@index([customerId])
+  @@index([filmStockId])
+  @@map("dev_note_items")
+}
+
+model MedBatch {
+  id         Int       @id @default(autoincrement())
+  process    Process
+  createdDate   DateTime
+  volume     String    @default("500ml")
+  devNotes   DevNote[]
+  createdAt  DateTime  @default(now())
+
+  @@index([process])
+  @@map("med_batches")
+}
