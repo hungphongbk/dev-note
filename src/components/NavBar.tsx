@@ -13,8 +13,9 @@ import { usePathname } from "next/navigation";
 import { preloadNewPageLists } from "@/lib/newPageListPreload";
 
 const NAV_LINKS = [
-  { href: "/new", label: "Thêm mới" },
-  { href: "/log", label: "Nhật kí" },
+  { href: "/new", label: "Thêm mới", desktopOnly: false },
+  { href: "/log", label: "Nhật kí", desktopOnly: false },
+  { href: "/film-stocks", label: "Quản lý film", desktopOnly: true },
 ];
 
 export function NavBar() {
@@ -34,7 +35,7 @@ export function NavBar() {
         </HStack>
 
         <HStack spacing={6}>
-          {NAV_LINKS.map(({ href, label }) => {
+          {NAV_LINKS.map(({ href, label, desktopOnly }) => {
             const isActive = pathname === href;
             const shouldPreloadNewPageLists = href === "/new";
             return (
@@ -42,6 +43,7 @@ export function NavBar() {
                 as={NextLink}
                 key={href}
                 href={href}
+                display={desktopOnly ? { base: "none", md: "block" } : undefined}
                 onMouseEnter={() => {
                   if (shouldPreloadNewPageLists) {
                     preloadNewPageLists();

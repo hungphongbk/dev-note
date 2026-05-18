@@ -10,6 +10,8 @@ import {
   FormLabel,
   HStack,
   Input,
+  InputGroup,
+  InputLeftElement,
   NumberInput,
   NumberInputField,
   NumberInputStepper,
@@ -29,8 +31,20 @@ import {
   ModalBody,
   ModalFooter,
   useDisclosure,
+  Drawer,
+  DrawerOverlay,
+  DrawerContent,
+  DrawerHeader,
+  DrawerBody,
+  DrawerCloseButton,
+  List,
+  ListItem,
+  useBreakpointValue,
+  Badge,
+  Wrap,
+  WrapItem,
 } from "@chakra-ui/react";
-import { AddIcon, DeleteIcon } from "@chakra-ui/icons";
+import { AddIcon, DeleteIcon, SearchIcon, CloseIcon } from "@chakra-ui/icons";
 import { useRouter } from "next/navigation";
 import { Select as ChakraReactSelect } from "chakra-react-select";
 import { NavBar } from "@/components/NavBar";
@@ -75,6 +89,13 @@ export default function NewDevNotePage() {
   const toast = useToast();
   const customerModal = useDisclosure();
   const filmModal = useDisclosure();
+  const drawerDisclosure = useDisclosure();
+
+  const isMobile = useBreakpointValue({ base: true, md: false });
+
+  const [drawerState, setDrawerState] = useState<{ type: "customer" | "film"; itemKey: string } | null>(null);
+  const [drawerSearch, setDrawerSearch] = useState("");
+  const [drawerBrand, setDrawerBrand] = useState<string | null>(null);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [filmStocks, setFilmStocks] = useState<FilmStock[]>([]);
@@ -187,6 +208,33 @@ export default function NewDevNotePage() {
     label: film.name,
   }));
 
+  const openMobileDrawer = (type: "customer" | "film", itemKey: string) => {
+    setDrawerState({ type, itemKey });
+    setDrawerSearch("");
+    setDrawerBrand(null);
+    drawerDisclosure.onOpen();
+  };
+
+  const handleDrawerSelect = (value: string) => {
+    if (!drawerState) return;
+    if (drawerState.type === "customer") {
+      handleUpdateItem(drawerState.itemKey, { customerId: value });
+    } else {
+      handleUpdateItem(drawerState.itemKey, { filmStockId: value });
+    }
+    drawerDisclosure.onClose();
+  };
+
+  const handleDrawerClear = () => {
+    if (!drawerState) return;
+    if (drawerState.type === "customer") {
+      handleUpdateItem(drawerState.itemKey, { customerId: "" });
+    } else {
+      handleUpdateItem(drawerState.itemKey, { filmStockId: "" });
+    }
+    drawerDisclosure.onClose();
+  };
+
   const processOptions: SelectOption[] = PROCESS_VALUES.map((p) => ({
     value: p,
     label: PROCESS_LABELS[p],
@@ -288,13 +336,39 @@ export default function NewDevNotePage() {
                       </Text>
                       <HStack align="stretch">
                         <Box flex={1}>
-                          <ChakraReactSelect<SelectOption, false>
-                            placeholder="Chọn khách hàng..."
-                            options={customerOptions}
-                            value={customerOptions.find((option) => option.value === item.customerId) ?? null}
-                            onChange={(option) => handleUpdateItem(item.key, { customerId: option?.value ?? "" })}
-                            isClearable
-                          />
+                          {isMobile ? (
+                            <Button
+                              w="full"
+                              variant="outline"
+                              justifyContent="flex-start"
+                              fontWeight="normal"
+                              color={item.customerId ? "inherit" : "gray.400"}
+                              rightIcon={
+                                item.customerId ? (
+                                  <CloseIcon
+                                    boxSize={2.5}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUpdateItem(item.key, { customerId: "" });
+                                    }}
+                                  />
+                                ) : undefined
+                              }
+                              onClick={() => openMobileDrawer("customer", item.key)}
+                            >
+                              {item.customerId
+                                ? customers.find((c) => String(c.id) === item.customerId)?.name ?? "Chọn khách hàng..."
+                                : "Chọn khách hàng..."}
+                            </Button>
+                          ) : (
+                            <ChakraReactSelect<SelectOption, false>
+                              placeholder="Chọn khách hàng..."
+                              options={customerOptions}
+                              value={customerOptions.find((option) => option.value === item.customerId) ?? null}
+                              onChange={(option) => handleUpdateItem(item.key, { customerId: option?.value ?? "" })}
+                              isClearable
+                            />
+                          )}
                         </Box>
                         <IconButton
                           aria-label="Thêm khách mới"
@@ -312,13 +386,39 @@ export default function NewDevNotePage() {
                       </Text>
                       <HStack align="stretch">
                         <Box flex={1}>
-                          <ChakraReactSelect<SelectOption, false>
-                            placeholder="Chọn film..."
-                            options={filmOptions}
-                            value={filmOptions.find((option) => option.value === item.filmStockId) ?? null}
-                            onChange={(option) => handleUpdateItem(item.key, { filmStockId: option?.value ?? "" })}
-                            isClearable
-                          />
+                          {isMobile ? (
+                            <Button
+                              w="full"
+                              variant="outline"
+                              justifyContent="flex-start"
+                              fontWeight="normal"
+                              color={item.filmStockId ? "inherit" : "gray.400"}
+                              rightIcon={
+                                item.filmStockId ? (
+                                  <CloseIcon
+                                    boxSize={2.5}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUpdateItem(item.key, { filmStockId: "" });
+                                    }}
+                                  />
+                                ) : undefined
+                              }
+                              onClick={() => openMobileDrawer("film", item.key)}
+                            >
+                              {item.filmStockId
+                                ? filmStocks.find((f) => String(f.id) === item.filmStockId)?.name ?? "Chọn film..."
+                                : "Chọn film..."}
+                            </Button>
+                          ) : (
+                            <ChakraReactSelect<SelectOption, false>
+                              placeholder="Chọn film..."
+                              options={filmOptions}
+                              value={filmOptions.find((option) => option.value === item.filmStockId) ?? null}
+                              onChange={(option) => handleUpdateItem(item.key, { filmStockId: option?.value ?? "" })}
+                              isClearable
+                            />
+                          )}
                         </Box>
                         <IconButton
                           aria-label="Thêm film mới"
@@ -489,6 +589,133 @@ export default function NewDevNotePage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Mobile bottom drawer for selecting customer / film */}
+      <Drawer
+        isOpen={drawerDisclosure.isOpen}
+        placement="bottom"
+        onClose={drawerDisclosure.onClose}
+      >
+        <DrawerOverlay />
+        <DrawerContent borderTopRadius="xl" maxH="70vh">
+          <DrawerCloseButton />
+          <DrawerHeader borderBottomWidth="1px" pb={3}>
+            <Flex align="center" gap={2}>
+              {drawerState?.type === "customer" ? "Chọn khách hàng" : "Chọn film"}
+              {drawerState && (
+                (() => {
+                  const options = drawerState.type === "customer" ? customerOptions : filmOptions;
+                  const currentValue = drawerState.type === "customer"
+                    ? items.find((i) => i.key === drawerState.itemKey)?.customerId
+                    : items.find((i) => i.key === drawerState.itemKey)?.filmStockId;
+                  const current = options.find((o) => o.value === currentValue);
+                  return current ? (
+                    <Badge colorScheme="brand" fontWeight="normal" fontSize="sm">
+                      {current.label}
+                    </Badge>
+                  ) : null;
+                })()
+              )}
+            </Flex>
+          </DrawerHeader>
+          <DrawerBody pb={6} overflowY="auto">
+            <InputGroup mb={3} mt={1}>
+              <InputLeftElement pointerEvents="none">
+                <SearchIcon color="gray.400" />
+              </InputLeftElement>
+              <Input
+                placeholder="Tìm kiếm..."
+                value={drawerSearch}
+                onChange={(e) => setDrawerSearch(e.target.value)}
+                autoFocus
+              />
+            </InputGroup>
+
+            {(() => {
+              const options = drawerState?.type === "customer" ? customerOptions : filmOptions;
+
+              // Brand filter chips — only for film drawer
+              const brands = drawerState?.type === "film"
+                ? Array.from(new Set(filmOptions.map((o) => o.label.split(" ")[0]))).sort()
+                : [];
+
+              const filtered = options.filter((o) => {
+                const matchesSearch = o.label.toLowerCase().includes(drawerSearch.toLowerCase());
+                const matchesBrand = drawerState?.type !== "film" || !drawerBrand || o.label.startsWith(drawerBrand);
+                return matchesSearch && matchesBrand;
+              });
+              const currentValue = drawerState
+                ? drawerState.type === "customer"
+                  ? items.find((i) => i.key === drawerState.itemKey)?.customerId
+                  : items.find((i) => i.key === drawerState.itemKey)?.filmStockId
+                : undefined;
+
+              return (
+                <>
+                  {brands.length > 1 && (
+                    <Wrap spacing={2} mb={3}>
+                      {brands.map((brand) => (
+                        <WrapItem key={brand}>
+                          <Button
+                            size="sm"
+                            borderRadius="full"
+                            variant={drawerBrand === brand ? "solid" : "outline"}
+                            colorScheme="brand"
+                            onClick={() => setDrawerBrand((prev) => (prev === brand ? null : brand))}
+                          >
+                            {brand}
+                          </Button>
+                        </WrapItem>
+                      ))}
+                    </Wrap>
+                  )}
+                  <List spacing={1}>
+                  {currentValue && (
+                    <ListItem>
+                      <Button
+                        w="full"
+                        variant="ghost"
+                        justifyContent="flex-start"
+                        color="red.500"
+                        size="sm"
+                        leftIcon={<CloseIcon boxSize={2.5} />}
+                        onClick={handleDrawerClear}
+                        mb={1}
+                      >
+                        Xóa lựa chọn
+                      </Button>
+                    </ListItem>
+                  )}
+                  {filtered.length === 0 ? (
+                    <ListItem>
+                      <Text color="gray.400" textAlign="center" py={4} fontSize="sm">
+                        Không tìm thấy kết quả
+                      </Text>
+                    </ListItem>
+                  ) : (
+                    filtered.map((option) => (
+                      <ListItem key={option.value}>
+                        <Button
+                          w="full"
+                          variant={option.value === currentValue ? "solid" : "ghost"}
+                          colorScheme={option.value === currentValue ? "brand" : undefined}
+                          justifyContent="flex-start"
+                          fontWeight={option.value === currentValue ? "semibold" : "normal"}
+                          onClick={() => handleDrawerSelect(option.value)}
+                          size="md"
+                        >
+                          {option.label}
+                        </Button>
+                      </ListItem>
+                    ))
+                  )}
+                </List>
+                </>
+              );
+            })()}
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
     </Box>
   );
 }
