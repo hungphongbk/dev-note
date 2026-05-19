@@ -244,12 +244,13 @@ export default function NewDevNotePage() {
     processOptions.find((option) => option.value === process) ?? null;
 
   const autoRollCount = items.reduce((sum, item) => sum + Math.max(0, item.quantity || 0), 0);
+  const suggestedRollCount = Math.min(6, Math.max(1, autoRollCount || 1));
 
   useEffect(() => {
     if (!rollCountTouched) {
-      setRollCount(Math.max(1, autoRollCount || 1));
+      setRollCount(suggestedRollCount);
     }
-  }, [autoRollCount, rollCountTouched]);
+  }, [rollCountTouched, suggestedRollCount]);
 
   const handleUpdateItem = (key: string, patch: Partial<DevNoteItemInput>) => {
     setItems((prev) => prev.map((item) => (item.key === key ? { ...item, ...patch } : item)));
@@ -471,49 +472,113 @@ export default function NewDevNotePage() {
 
           <FormControl isRequired>
             <FormLabel fontWeight="semibold">Quy trình</FormLabel>
-            <ChakraReactSelect<SelectOption, false>
-              placeholder="Chọn quy trình..."
-              options={processOptions}
-              value={selectedProcessOption}
-              onChange={(option) => setProcess((option?.value as Process | undefined) ?? "")}
-            />
+            {isMobile ? (
+              <Wrap spacing={2}>
+                {PROCESS_VALUES.map((value) => {
+                  const isActive = process === value;
+                  return (
+                    <WrapItem key={value}>
+                      <Button
+                        size="sm"
+                        borderRadius="full"
+                        variant={isActive ? "solid" : "outline"}
+                        colorScheme="brand"
+                        onClick={() => setProcess(isActive ? "" : value)}
+                      >
+                        {PROCESS_LABELS[value]}
+                      </Button>
+                    </WrapItem>
+                  );
+                })}
+              </Wrap>
+            ) : (
+              <ChakraReactSelect<SelectOption, false>
+                placeholder="Chọn quy trình..."
+                options={processOptions}
+                value={selectedProcessOption}
+                onChange={(option) => setProcess((option?.value as Process | undefined) ?? "")}
+              />
+            )}
           </FormControl>
 
           <FormControl isRequired>
             <FormLabel fontWeight="semibold">Số lượng cuộn</FormLabel>
-            <HStack align="center" spacing={3} flexWrap="wrap">
-              <NumberInput
-                min={1}
-                max={999}
-                value={rollCount}
-                onChange={(_, val) => {
-                  setRollCount(isNaN(val) ? 1 : Math.max(1, Math.trunc(val)));
-                  setRollCountTouched(true);
-                }}
-                maxW="140px"
-              >
-                <NumberInputField />
-                <NumberInputStepper>
-                  <NumberIncrementStepper />
-                  <NumberDecrementStepper />
-                </NumberInputStepper>
-              </NumberInput>
+            {isMobile ? (
+              <VStack align="stretch" spacing={2}>
+                <Wrap spacing={2}>
+                  {[1, 2, 3, 4, 5, 6].map((count) => {
+                    const isActive = rollCount === count;
+                    return (
+                      <WrapItem key={count}>
+                        <Button
+                          size="sm"
+                          minW="44px"
+                          borderRadius="full"
+                          variant={isActive ? "solid" : "outline"}
+                          colorScheme="brand"
+                          onClick={() => {
+                            setRollCount(count);
+                            setRollCountTouched(true);
+                          }}
+                        >
+                          {count}
+                        </Button>
+                      </WrapItem>
+                    );
+                  })}
+                </Wrap>
 
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setRollCount(Math.max(1, autoRollCount || 1));
-                  setRollCountTouched(false);
-                }}
-              >
-                Tự động điền theo danh sách
-              </Button>
+                <HStack justify="space-between" flexWrap="wrap" spacing={2}>
+                  <Text fontSize="sm" color="gray.500">
+                    Gợi ý: {suggestedRollCount} cuộn
+                  </Text>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setRollCount(suggestedRollCount);
+                      setRollCountTouched(false);
+                    }}
+                  >
+                    Tự động điền
+                  </Button>
+                </HStack>
+              </VStack>
+            ) : (
+              <HStack align="center" spacing={3} flexWrap="wrap">
+                <NumberInput
+                  min={1}
+                  max={6}
+                  value={rollCount}
+                  onChange={(_, val) => {
+                    setRollCount(isNaN(val) ? 1 : Math.min(6, Math.max(1, Math.trunc(val))));
+                    setRollCountTouched(true);
+                  }}
+                  maxW="140px"
+                >
+                  <NumberInputField />
+                  <NumberInputStepper>
+                    <NumberIncrementStepper />
+                    <NumberDecrementStepper />
+                  </NumberInputStepper>
+                </NumberInput>
 
-              <Text fontSize="sm" color="gray.500">
-                Gợi ý: {Math.max(1, autoRollCount || 1)} cuộn
-              </Text>
-            </HStack>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setRollCount(suggestedRollCount);
+                    setRollCountTouched(false);
+                  }}
+                >
+                  Tự động điền theo danh sách
+                </Button>
+
+                <Text fontSize="sm" color="gray.500">
+                  Gợi ý: {suggestedRollCount} cuộn
+                </Text>
+              </HStack>
+            )}
           </FormControl>
 
           <FormControl>
@@ -627,7 +692,6 @@ export default function NewDevNotePage() {
                 placeholder="Tìm kiếm..."
                 value={drawerSearch}
                 onChange={(e) => setDrawerSearch(e.target.value)}
-                autoFocus
               />
             </InputGroup>
 
