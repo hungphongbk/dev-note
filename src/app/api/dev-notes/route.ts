@@ -1,6 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withCache, CacheKey, TTL } from "@/lib/redis";
+import { withCache, invalidateCacheByPattern, CacheKey, TTL } from "@/lib/redis";
 import { Process } from "@prisma/client";
 
 interface IncomingItem {
@@ -147,6 +147,9 @@ export async function POST(request: Request) {
       },
     },
   });
+
+  // A newly created dev note impacts all paginated/filter variants of note listings.
+  await invalidateCacheByPattern(`${CacheKey.devNotesPrefix()}*`);
 
   return NextResponse.json(note, { status: 201 });
 }

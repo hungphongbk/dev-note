@@ -36,7 +36,7 @@ async function ensureConnected(): Promise<RedisClient> {
  */
 export async function withCache<T>(
   key: string,
-  ttl: number,
+  ttl: number | null,
   fetcher: () => Promise<T>,
 ): Promise<T> {
   try {
@@ -46,7 +46,11 @@ export async function withCache<T>(
       return JSON.parse(cached) as T;
     }
     const data = await fetcher();
-    await client.setEx(key, ttl, JSON.stringify(data));
+    if (ttl && ttl > 0) {
+      await client.setEx(key, ttl, JSON.stringify(data));
+    } else {
+      await client.set(key, JSON.stringify(data));
+    }
     return data;
   } catch (err) {
     console.warn("[Redis] Cache miss (falling back to DB):", err);
@@ -69,18 +73,41 @@ export async function invalidateCache(...keys: string[]): Promise<void> {
   }
 }
 
+/**
+ * Delete cache keys by pattern (e.g. dev-notes:*).
+ */
+export async function invalidateCacheByPattern(pattern: string): Promise<void> {
+  try {
+    const client = await ensureConnected();
+    const keys: string[] = [];
+
+    for await (const key of client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+      if (typeof key === "string") {
+        keys.push(key);
+      }
+    }
+
+    if (keys.length > 0) {
+      await client.del(keys);
+    }
+  } catch (err) {
+    console.warn("[Redis] Failed to invalidate cache by pattern:", err);
+  }
+}
+
 // Cache TTLs (seconds)
 export const TTL = {
   /** Reference data that rarely changes – customers, film stocks */
-  REFERENCE: 300,
+  REFERENCE: null,
   /** Paginated list queries */
-  LIST: 30,
+  LIST: 300,
 } as const;
 
 // Cache key factories
 export const CacheKey = {
+  devNotesPrefix: () => "dev-notes:",
   customers: () => "customers",
   filmStocks: () => "film-stocks",
   devNotes: (customerId: string | null, process: string | null, page: number, pageSize: number) =>
-    `dev-notes:${customerId ?? "all"}:${process ?? "all"}:${page}:${pageSize}`,
+    `${CacheKey.devNotesPrefix()}${customerId ?? "all"}:${process ?? "all"}:${page}:${pageSize}`,
 } as const;
