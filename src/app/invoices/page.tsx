@@ -21,7 +21,7 @@ import {
   VStack,
   useToast,
 } from "@chakra-ui/react";
-import { AddIcon, CheckIcon, ChevronLeftIcon, DeleteIcon, EditIcon } from "@chakra-ui/icons";
+import { AddIcon, CheckIcon, ChevronLeftIcon, DeleteIcon, DownloadIcon, EditIcon } from "@chakra-ui/icons";
 import { PriceService, Process } from "@prisma/client";
 import { Select as ChakraReactSelect } from "chakra-react-select";
 
@@ -153,6 +153,212 @@ function formatMoney(amount: number) {
   return `${formatVnd(amount)}đ`;
 }
 
+function canvasToBlob(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+      } else {
+        reject(new Error("Không thể tạo ảnh hóa đơn"));
+      }
+    }, "image/png");
+  });
+}
+
+function drawRoundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, radius);
+  ctx.arcTo(x + width, y + height, x, y + height, radius);
+  ctx.arcTo(x, y + height, x, y, radius);
+  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.closePath();
+}
+
+function drawWrappedText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+  maxLines = Number.POSITIVE_INFINITY,
+) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (ctx.measureText(candidate).width <= maxWidth) {
+      current = candidate;
+      continue;
+    }
+
+    if (current) {
+      lines.push(current);
+      current = word;
+    } else {
+      let fragment = "";
+      for (const character of word) {
+        if (ctx.measureText(`${fragment}${character}`).width > maxWidth && fragment) {
+          lines.push(fragment);
+          fragment = character;
+        } else {
+          fragment += character;
+        }
+      }
+      current = fragment;
+    }
+  }
+
+  if (current) {
+    lines.push(current);
+  }
+
+  const visibleLines = lines.slice(0, maxLines);
+  if (lines.length > visibleLines.length && visibleLines.length > 0) {
+    visibleLines[visibleLines.length - 1] = `${visibleLines[visibleLines.length - 1].replace(/\s+$/, "")}...`;
+  }
+
+  visibleLines.forEach((line, index) => {
+    ctx.fillText(line, x, y + index * lineHeight);
+  });
+
+  return y + visibleLines.length * lineHeight;
+}
+
+async function renderInvoiceA5Image(invoice: Invoice) {
+  const width = 1240;
+  const height = 1754;
+  const margin = 88;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) {
+    throw new Error("Trình duyệt không hỗ trợ canvas");
+  }
+
+  ctx.fillStyle = "#f8fafc";
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = "#ffffff";
+  drawRoundedRect(ctx, 44, 44, width - 88, height - 88, 32);
+  ctx.fill();
+
+  ctx.fillStyle = "#b85c00";
+  drawRoundedRect(ctx, 44, 44, width - 88, 178, 32);
+  ctx.fill();
+  ctx.fillRect(44, 150, width - 88, 72);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 48px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText("Dev Note", margin, 122);
+  ctx.font = "500 26px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText("Hóa đơn tráng scan", margin, 166);
+
+  ctx.textAlign = "right";
+  ctx.font = "700 38px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText(`#${invoice.id}`, width - margin, 118);
+  ctx.font = "500 24px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText(formatDate(invoice.createdAt), width - margin, 158);
+  ctx.textAlign = "left";
+
+  let y = 300;
+  ctx.fillStyle = "#111827";
+  ctx.font = "700 42px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText(invoice.customer.name, margin, y);
+  y += 56;
+
+  ctx.fillStyle = "#64748b";
+  ctx.font = "500 24px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText("Khách hàng", margin, y);
+  y += 72;
+
+  ctx.strokeStyle = "#e2e8f0";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(margin, y);
+  ctx.lineTo(width - margin, y);
+  ctx.stroke();
+  y += 58;
+
+  const itemLimit = invoice.items.length > 12 ? 11 : invoice.items.length;
+  invoice.items.slice(0, itemLimit).forEach((item, index) => {
+    const rowTop = y - 24;
+    ctx.fillStyle = index % 2 === 0 ? "#fff7ed" : "#ffffff";
+    drawRoundedRect(ctx, margin - 22, rowTop, width - margin * 2 + 44, 116, 18);
+    ctx.fill();
+
+    ctx.fillStyle = "#111827";
+    ctx.font = "700 28px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    drawWrappedText(ctx, item.filmStockName, margin, y + 12, 540, 34, 2);
+
+    ctx.fillStyle = "#64748b";
+    ctx.font = "500 22px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(`${PRICE_SERVICE_LABELS[item.service]} - ${PROCESS_LABELS[item.process]}`, margin, y + 76);
+
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#64748b";
+    ctx.font = "500 22px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(`${item.quantity} x ${formatMoney(item.unitPrice)}`, width - margin, y + 26);
+    ctx.fillStyle = "#924500";
+    ctx.font = "700 30px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(formatMoney(item.lineTotal), width - margin, y + 72);
+    ctx.textAlign = "left";
+
+    y += 134;
+  });
+
+  if (invoice.items.length > itemLimit) {
+    ctx.fillStyle = "#64748b";
+    ctx.font = "600 24px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(`+ ${invoice.items.length - itemLimit} item khác`, margin, y);
+    y += 54;
+  }
+
+  y += 18;
+  if (invoice.notes) {
+    ctx.fillStyle = "#f1f5f9";
+    drawRoundedRect(ctx, margin - 22, y - 28, width - margin * 2 + 44, 130, 18);
+    ctx.fill();
+    ctx.fillStyle = "#334155";
+    ctx.font = "600 22px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("Ghi chú", margin, y);
+    ctx.font = "400 23px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    drawWrappedText(ctx, invoice.notes, margin, y + 42, width - margin * 2, 30, 3);
+  }
+
+  const totalTop = height - 258;
+  ctx.fillStyle = "#fdf6ec";
+  drawRoundedRect(ctx, margin - 22, totalTop, width - margin * 2 + 44, 126, 24);
+  ctx.fill();
+
+  ctx.fillStyle = "#111827";
+  ctx.font = "700 32px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText("Tổng cộng", margin, totalTop + 76);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#924500";
+  ctx.font = "800 48px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText(formatMoney(invoice.total), width - margin, totalTop + 80);
+  ctx.textAlign = "left";
+
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "500 22px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText("A5 PNG - sẵn sàng in từ iOS Share Sheet", margin, height - 104);
+
+  return canvasToBlob(canvas);
+}
+
 function getDefaultPrice(priceTable: PriceTableInfo | null, service: PriceService, process: Process) {
   return priceTable?.prices[service]?.[process] ?? DEFAULT_PROCESSING_PRICES[service][process];
 }
@@ -210,6 +416,7 @@ export default function InvoicesPage() {
   const [saving, setSaving] = useState(false);
   const [editingInvoiceId, setEditingInvoiceId] = useState<number | null>(null);
   const [savedInvoice, setSavedInvoice] = useState<Invoice | null>(null);
+  const [exportingInvoiceId, setExportingInvoiceId] = useState<number | null>(null);
 
   const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId) ?? null;
   const isEditing = mode === "edit";
@@ -413,6 +620,46 @@ export default function InvoicesPage() {
     }
   };
 
+  const exportInvoiceImage = async (invoice: Invoice) => {
+    setExportingInvoiceId(invoice.id);
+    try {
+      const blob = await renderInvoiceA5Image(invoice);
+      const fileName = `dev-note-invoice-${invoice.id}.png`;
+      const file = new File([blob], fileName, { type: "image/png" });
+
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: `Hóa đơn #${invoice.id}`,
+          text: `Hóa đơn tráng scan của ${invoice.customer.name}`,
+          files: [file],
+        });
+        return;
+      }
+
+      const url = URL.createObjectURL(blob);
+      const opened = window.open(url, "_blank", "noopener,noreferrer");
+
+      if (!opened) {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
+      toast({ title: error instanceof Error ? error.message : "Không thể xuất ảnh hóa đơn", status: "error" });
+    } finally {
+      setExportingInvoiceId(null);
+    }
+  };
+
   const saveInvoice = async () => {
     if (!selectedCustomerId || draftItems.length === 0) {
       toast({ title: "Chọn khách và ít nhất một item", status: "warning" });
@@ -512,9 +759,20 @@ export default function InvoicesPage() {
       <Box minH="100vh" bg="gray.50">
         <NavBar />
         <Box maxW="3xl" mx="auto" px={{ base: 3, md: 4 }} py={{ base: 4, md: 8 }}>
-          <Button leftIcon={<ChevronLeftIcon />} variant="ghost" colorScheme="brand" mb={3} onClick={closeWizard}>
-            Danh sách
-          </Button>
+          <Flex justify="space-between" align="center" gap={3} mb={3}>
+            <Button leftIcon={<ChevronLeftIcon />} variant="ghost" colorScheme="brand" onClick={closeWizard}>
+              Danh sách
+            </Button>
+            <Button
+              leftIcon={<DownloadIcon />}
+              colorScheme="brand"
+              variant="outline"
+              onClick={() => exportInvoiceImage(savedInvoice)}
+              isLoading={exportingInvoiceId === savedInvoice.id}
+            >
+              Xuất ảnh A5
+            </Button>
+          </Flex>
           <Box bg="white" borderRadius="xl" shadow="sm" p={{ base: 4, md: 6 }}>
             {renderInvoiceSummary(savedInvoice)}
           </Box>
@@ -883,6 +1141,15 @@ export default function InvoicesPage() {
                       {formatMoney(invoice.total)}
                     </Text>
                     <HStack>
+                      <IconButton
+                        aria-label="Xuất ảnh A5"
+                        icon={<DownloadIcon />}
+                        size="sm"
+                        variant="outline"
+                        colorScheme="brand"
+                        onClick={() => exportInvoiceImage(invoice)}
+                        isLoading={exportingInvoiceId === invoice.id}
+                      />
                       <IconButton
                         aria-label="Sửa hóa đơn"
                         icon={<EditIcon />}
