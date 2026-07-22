@@ -1,5 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { bumpCacheVersion, CacheKey, CacheVersion, getCacheVersion, TTL, withCache } from "@/lib/redis";
 import { Process } from "@prisma/client";
 
 interface IncomingItem {
@@ -42,43 +43,52 @@ export async function GET(request: Request) {
   const skip = (page - 1) * pageSize;
   const parsedCustomerId = customerId ? parseInt(customerId) : null;
 
-  const where = {
-    ...(parsedCustomerId ? { items: { some: { customerId: parsedCustomerId } } } : {}),
-    ...(process ? { process } : {}),
-  };
+  const version = await getCacheVersion(CacheVersion.devNotes());
+  const cacheKey = CacheKey.devNotes(version, customerId, process, page, pageSize);
 
-  const total = await prisma.devNote.count({ where });
+  const result = await withCache(cacheKey, TTL.LIST, async () => {
+    const where = {
+      ...(parsedCustomerId ? { items: { some: { customerId: parsedCustomerId } } } : {}),
+      ...(process ? { process } : {}),
+    };
 
-  const notes = await prisma.devNote.findMany({
-    where,
-    include: {
-      customer: true,
-      films: {
-        include: { filmStock: true },
-      },
-      items: {
-        include: {
-          customer: true,
-          filmStock: true,
+    const total = await prisma.devNote.count({ where });
+
+    const notes = await prisma.devNote.findMany({
+      where,
+      include: {
+        customer: true,
+        films: {
+          include: { filmStock: true },
+        },
+        items: {
+          include: {
+            customer: true,
+            filmStock: true,
+          },
         },
       },
-    },
-    orderBy: { createdAt: "desc" },
-    skip,
-    take: pageSize,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: pageSize,
+    });
+
+    return {
+      items: notes,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      },
+    };
   });
 
-  const result = {
-    items: notes,
-    pagination: {
-      page,
-      pageSize,
-      total,
-      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  return NextResponse.json(result, {
+    headers: {
+      "Cache-Control": "no-store",
     },
-  };
-
-  return NextResponse.json(result);
+  });
 }
 
 export async function POST(request: Request) {
@@ -142,6 +152,8 @@ export async function POST(request: Request) {
       },
     },
   });
+
+  await bumpCacheVersion(CacheVersion.devNotes());
 
   return NextResponse.json(note, { status: 201 });
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { bumpCacheVersion, CacheVersion } from "@/lib/redis";
 import { Process } from "@prisma/client";
 
 export async function POST(request: Request) {
@@ -92,6 +93,8 @@ export async function POST(request: Request) {
       },
     });
 
+    await bumpCacheVersion(CacheVersion.devNotes());
+
     return NextResponse.json(batchWithNotes, { status: 201 });
   } catch (error) {
     console.error("Error creating med batch:", error);
@@ -140,4 +143,3 @@ export async function GET(request: Request) {
     },
   });
 }
-

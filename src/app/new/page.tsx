@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect, useCallback, useRef, type PointerEvent } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Button,
@@ -43,10 +43,12 @@ import {
   PopoverContent,
   PopoverArrow,
   PopoverBody,
+  Portal,
   SimpleGrid,
 } from "@chakra-ui/react";
 import { AddIcon, DeleteIcon, SearchIcon, CloseIcon, ChevronDownIcon } from "@chakra-ui/icons";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { Select as ChakraReactSelect } from "chakra-react-select";
 import { NavBar } from "@/components/NavBar";
 import { PROCESS_LABELS, PROCESS_VALUES } from "@/lib/constants";
@@ -109,15 +111,6 @@ export default function NewDevNotePage() {
   const [notes, setNotes] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [openDeleteKey, setOpenDeleteKey] = useState<string | null>(null);
-  const [dragState, setDragState] = useState<{ key: string; offset: number } | null>(null);
-  const swipeRef = useRef<{
-    key: string;
-    startX: number;
-    startY: number;
-    startOffset: number;
-    isDragging: boolean;
-  } | null>(null);
-  const suppressClickRef = useRef<string | null>(null);
 
   const [newCustomerName, setNewCustomerName] = useState("");
   const [addingCustomer, setAddingCustomer] = useState(false);
@@ -262,7 +255,6 @@ export default function NewDevNotePage() {
 
   const handleRemoveItem = (key: string) => {
     setOpenDeleteKey(null);
-    setDragState(null);
     setItems((prev) => {
       if (prev.length === 1) {
         return [createEmptyFilmItem()];
@@ -318,56 +310,7 @@ export default function NewDevNotePage() {
   };
 
   const getSwipeOffset = (key: string) => {
-    if (dragState?.key === key) {
-      return dragState.offset;
-    }
     return openDeleteKey === key ? -DELETE_REVEAL_WIDTH : 0;
-  };
-
-  const handleSwipeStart = (event: PointerEvent<HTMLDivElement>, key: string) => {
-    if (!isMobile) return;
-
-    event.currentTarget.setPointerCapture(event.pointerId);
-    swipeRef.current = {
-      key,
-      startX: event.clientX,
-      startY: event.clientY,
-      startOffset: openDeleteKey === key ? -DELETE_REVEAL_WIDTH : 0,
-      isDragging: false,
-    };
-  };
-
-  const handleSwipeMove = (event: PointerEvent<HTMLDivElement>) => {
-    const swipe = swipeRef.current;
-    if (!isMobile || !swipe) return;
-
-    const deltaX = event.clientX - swipe.startX;
-    const deltaY = event.clientY - swipe.startY;
-
-    if (!swipe.isDragging && Math.abs(deltaX) < 8) return;
-    if (!swipe.isDragging && Math.abs(deltaY) > Math.abs(deltaX)) return;
-
-    swipe.isDragging = true;
-    const nextOffset = Math.min(0, Math.max(-DELETE_REVEAL_WIDTH, swipe.startOffset + deltaX));
-    setOpenDeleteKey(swipe.key);
-    setDragState({ key: swipe.key, offset: nextOffset });
-  };
-
-  const handleSwipeEnd = () => {
-    const swipe = swipeRef.current;
-    if (!swipe) return;
-
-    const offset = dragState?.key === swipe.key ? dragState.offset : swipe.startOffset;
-    const shouldOpen = offset < -DELETE_REVEAL_WIDTH / 2;
-    if (swipe.isDragging) {
-      suppressClickRef.current = swipe.key;
-      window.setTimeout(() => {
-        suppressClickRef.current = null;
-      }, 0);
-    }
-    setOpenDeleteKey(shouldOpen ? swipe.key : null);
-    setDragState(null);
-    swipeRef.current = null;
   };
 
   const renderFilmPicker = (item: DevNoteFilmInput) => (
@@ -432,41 +375,44 @@ export default function NewDevNotePage() {
             {item.quantity}
           </Button>
         </PopoverTrigger>
-        <PopoverContent
-          w={{ base: "300px", md: "216px" }}
-          borderColor="brand.100"
-          borderRadius="lg"
-          boxShadow="0 18px 45px rgba(146, 69, 0, 0.22)"
-          _focusVisible={{ outline: "none" }}
-        >
-          <PopoverArrow bg="white" />
-          <PopoverBody p={{ base: 2, md: 3 }}>
-            <SimpleGrid columns={{ base: 6, md: 3 }} spacing={2}>
-              {QUANTITY_OPTIONS.map((count) => {
-                const isActive = item.quantity === count;
-                return (
-                  <Button
-                    key={count}
-                    aria-label={`${count} cuộn`}
-                    minW={{ base: "36px", md: "44px" }}
-                    h={{ base: "36px", md: "44px" }}
-                    borderRadius="full"
-                    colorScheme="brand"
-                    variant={isActive ? "solid" : "outline"}
-                    fontWeight="bold"
-                    onClick={() => handleUpdateItem(item.key, { quantity: count })}
-                    _hover={{
-                      transform: "translateY(-1px)",
-                      boxShadow: "sm",
-                    }}
-                  >
-                    {count}
-                  </Button>
-                );
-              })}
-            </SimpleGrid>
-          </PopoverBody>
-        </PopoverContent>
+        <Portal>
+          <PopoverContent
+            w={{ base: "300px", md: "216px" }}
+            borderColor="brand.100"
+            borderRadius="lg"
+            boxShadow="0 18px 45px rgba(146, 69, 0, 0.22)"
+            zIndex="popover"
+            _focusVisible={{ outline: "none" }}
+          >
+            <PopoverArrow bg="white" />
+            <PopoverBody p={{ base: 2, md: 3 }}>
+              <SimpleGrid columns={{ base: 6, md: 3 }} spacing={2}>
+                {QUANTITY_OPTIONS.map((count) => {
+                  const isActive = item.quantity === count;
+                  return (
+                    <Button
+                      key={count}
+                      aria-label={`${count} cuộn`}
+                      minW={{ base: "36px", md: "44px" }}
+                      h={{ base: "36px", md: "44px" }}
+                      borderRadius="full"
+                      colorScheme="brand"
+                      variant={isActive ? "solid" : "outline"}
+                      fontWeight="bold"
+                      onClick={() => handleUpdateItem(item.key, { quantity: count })}
+                      _hover={{
+                        transform: "translateY(-1px)",
+                        boxShadow: "sm",
+                      }}
+                    >
+                      {count}
+                    </Button>
+                  );
+                })}
+              </SimpleGrid>
+            </PopoverBody>
+          </PopoverContent>
+        </Portal>
       </Popover>
 
       {!isMobile && (
@@ -583,6 +529,7 @@ export default function NewDevNotePage() {
                       justify="center"
                       bg={getSwipeOffset(item.key) < 0 ? "red.500" : "transparent"}
                       opacity={getSwipeOffset(item.key) < 0 ? 1 : 0}
+                      pointerEvents={getSwipeOffset(item.key) < 0 ? "auto" : "none"}
                       transition="opacity 120ms ease"
                     >
                       <IconButton
@@ -599,42 +546,46 @@ export default function NewDevNotePage() {
                     </Flex>
                   )}
 
-                  <Box
+                  <motion.div
                     data-testid={`film-row-${index + 1}`}
-                    bg={item.filmStockId ? "brand.50" : "white"}
-                    borderRadius="lg"
-                    p={{ base: 2, md: 3 }}
-                    transform={{
-                      base: `translateX(${getSwipeOffset(item.key)}px)`,
-                      md: "translateX(0)",
+                    drag={isMobile ? "x" : false}
+                    dragConstraints={{ left: -DELETE_REVEAL_WIDTH, right: 0 }}
+                    dragElastic={0}
+                    dragMomentum={false}
+                    animate={{
+                      x: isMobile && openDeleteKey === item.key ? -DELETE_REVEAL_WIDTH : 0,
                     }}
-                    transition={dragState?.key === item.key ? "none" : "transform 180ms ease, background-color 180ms ease"}
-                    style={{ touchAction: "pan-y" }}
-                    onPointerDown={(event) => handleSwipeStart(event, item.key)}
-                    onPointerMove={handleSwipeMove}
-                    onPointerUp={handleSwipeEnd}
-                    onPointerCancel={handleSwipeEnd}
-                    onClickCapture={(event) => {
-                      if (suppressClickRef.current === item.key) {
-                        event.stopPropagation();
-                        return;
+                    transition={{ type: "spring", stiffness: 520, damping: 42 }}
+                    style={{ borderRadius: 8, touchAction: "pan-y" }}
+                    onDragStart={() => {
+                      if (isMobile) {
+                        setOpenDeleteKey(item.key);
                       }
-                      if (isMobile && openDeleteKey === item.key && !swipeRef.current?.isDragging) {
+                    }}
+                    onDragEnd={(_, info) => {
+                      if (!isMobile) return;
+                      const shouldOpen = info.offset.x < -DELETE_REVEAL_WIDTH / 2 || info.velocity.x < -350;
+                      setOpenDeleteKey(shouldOpen ? item.key : null);
+                    }}
+                    onClickCapture={(event) => {
+                      if (isMobile && openDeleteKey === item.key) {
                         setOpenDeleteKey(null);
                         event.stopPropagation();
                       }
                     }}
                   >
-                    <Flex justify="space-between" align="center" mb={2}>
-                      <Text fontSize="xs" fontWeight="bold" color="gray.500" textTransform="uppercase">
-                        Film {index + 1}
-                      </Text>
-                      <Text fontSize="xs" color="gray.500">
-                        Số cuộn
-                      </Text>
-                    </Flex>
-                    {renderFilmPicker(item)}
-                  </Box>
+                    <Box bg={item.filmStockId ? "brand.50" : "white"} borderRadius="lg" p={{ base: 2, md: 3 }}>
+                      <Flex justify="space-between" align="center" mb={2}>
+                        <Text fontSize="xs" fontWeight="bold" color="gray.500" textTransform="uppercase">
+                          Film {index + 1}
+                        </Text>
+                        <Text fontSize="xs" color="gray.500">
+                          Số cuộn
+                        </Text>
+                      </Flex>
+                      {renderFilmPicker(item)}
+                    </Box>
+                  </motion.div>
                 </Box>
               ))}
             </VStack>
