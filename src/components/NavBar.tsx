@@ -19,7 +19,7 @@ import {
   useColorModeValue,
   useDisclosure,
 } from "@chakra-ui/react";
-import { AddIcon, EditIcon, HamburgerIcon, SettingsIcon, StarIcon, TimeIcon } from "@chakra-ui/icons";
+import { AddIcon, CopyIcon, EditIcon, HamburgerIcon, SettingsIcon, StarIcon, TimeIcon } from "@chakra-ui/icons";
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
 import { preloadNewPageLists } from "@/lib/newPageListPreload";
@@ -27,6 +27,7 @@ import { preloadNewPageLists } from "@/lib/newPageListPreload";
 const NAV_LINKS = [
   { href: "/new", label: "Thêm mới", description: "Ghi chú tráng film", icon: AddIcon },
   { href: "/log", label: "Nhật kí", description: "Danh sách đã lưu", icon: TimeIcon },
+  { href: "/invoices", label: "Hóa đơn", description: "Tráng scan", icon: CopyIcon },
   { href: "/pricing", label: "Bảng giá", description: "Tráng scan", icon: StarIcon },
   { href: "/film-stocks", label: "Film", description: "Quản lý kho film", icon: SettingsIcon },
 ];

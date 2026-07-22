@@ -35,6 +35,7 @@ model Customer {
   name            String               @unique
   devNotes        DevNote[]
   items           DevNoteItem[]
+  invoices        ProcessingInvoice[]
   priceTableLinks PriceTableCustomer[]
   createdAt       DateTime             @default(now())
 
@@ -79,15 +80,16 @@ model DevNoteFilm {
 }
 
 model DevNoteItem {
-  id          Int       @id @default(autoincrement())
-  devNoteId   Int
-  devNote     DevNote   @relation(fields: [devNoteId], references: [id], onDelete: Cascade)
-  customerId  Int
-  customer    Customer  @relation(fields: [customerId], references: [id])
-  filmStockId Int
-  filmStock   FilmStock @relation(fields: [filmStockId], references: [id])
-  quantity    Int       @default(1)
-  createdAt   DateTime  @default(now())
+  id           Int                     @id @default(autoincrement())
+  devNoteId    Int
+  devNote      DevNote                 @relation(fields: [devNoteId], references: [id], onDelete: Cascade)
+  customerId   Int
+  customer     Customer                @relation(fields: [customerId], references: [id])
+  filmStockId  Int
+  filmStock    FilmStock               @relation(fields: [filmStockId], references: [id])
+  quantity     Int                     @default(1)
+  invoiceItems ProcessingInvoiceItem[]
+  createdAt    DateTime                @default(now())
 
   @@unique([devNoteId, customerId, filmStockId])
   @@index([devNoteId])
@@ -146,4 +148,38 @@ model PriceTableCustomer {
   @@id([priceTableId, customerId])
   @@index([priceTableId])
   @@map("processing_price_table_customers")
+}
+
+model ProcessingInvoice {
+  id         Int                     @id @default(autoincrement())
+  customerId Int
+  customer   Customer                @relation(fields: [customerId], references: [id])
+  notes      String?
+  items      ProcessingInvoiceItem[]
+  createdAt  DateTime                @default(now())
+  updatedAt  DateTime                @updatedAt
+
+  @@index([customerId])
+  @@index([createdAt])
+  @@map("processing_invoices")
+}
+
+model ProcessingInvoiceItem {
+  id            Int               @id @default(autoincrement())
+  invoiceId     Int
+  invoice       ProcessingInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  devNoteItemId Int?
+  devNoteItem   DevNoteItem?      @relation(fields: [devNoteItemId], references: [id], onDelete: SetNull)
+  service       PriceService
+  process       Process
+  filmStockName String
+  quantity      Int
+  unitPrice     Int
+  lineTotal     Int
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([invoiceId])
+  @@index([devNoteItemId])
+  @@map("processing_invoice_items")
 }

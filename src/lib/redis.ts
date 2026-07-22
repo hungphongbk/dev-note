@@ -134,6 +134,7 @@ export const TTL = {
 
 export const CacheVersion = {
   devNotes: () => "dev-notes:version",
+  invoices: () => "processing-invoices:version",
 } as const;
 
 export const CacheKey = {
@@ -147,4 +148,10 @@ export const CacheKey = {
     page: number,
     pageSize: number,
   ) => `dev-notes:v${version}:${customerId ?? "all"}:${process ?? "all"}:${page}:${pageSize}`,
+  invoices: (
+    version: string,
+    customerId: string | null,
+    page: number,
+    pageSize: number,
+  ) => `processing-invoices:v${version}:${customerId ?? "all"}:${page}:${pageSize}`,
 } as const;
