@@ -1,13 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withCache, invalidateCache, CacheKey, TTL } from "@/lib/redis";
 
 export async function GET() {
-  const filmStocks = await withCache(
-    CacheKey.filmStocks(),
-    TTL.REFERENCE,
-    () => prisma.filmStock.findMany({ orderBy: { name: "asc" } }),
-  );
+  const filmStocks = await prisma.filmStock.findMany({ orderBy: { name: "asc" } });
   return NextResponse.json(filmStocks);
 }
 
@@ -21,7 +16,6 @@ export async function POST(request: Request) {
 
   try {
     const filmStock = await prisma.filmStock.create({ data: { name } });
-    await invalidateCache(CacheKey.filmStocks());
     return NextResponse.json(filmStock, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Film stock đã tồn tại" }, { status: 409 });

@@ -1,13 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withCache, invalidateCache, CacheKey, TTL } from "@/lib/redis";
 
 export async function GET() {
-  const customers = await withCache(
-    CacheKey.customers(),
-    TTL.REFERENCE,
-    () => prisma.customer.findMany({ orderBy: { name: "asc" } }),
-  );
+  const customers = await prisma.customer.findMany({ orderBy: { name: "asc" } });
   return NextResponse.json(customers);
 }
 
@@ -21,7 +16,6 @@ export async function POST(request: Request) {
 
   try {
     const customer = await prisma.customer.create({ data: { name } });
-    await invalidateCache(CacheKey.customers());
     return NextResponse.json(customer, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Khách hàng đã tồn tại" }, { status: 409 });
