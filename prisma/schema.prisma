@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
@@ -21,14 +21,22 @@ enum Process {
   E6
 }
 
+enum PriceService {
+  DEVELOP_SCAN
+  DEVELOP
+  SCAN
+  BORDER_BONUS
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model Customer {
-  id        Int       @id @default(autoincrement())
-  name      String    @unique
-  devNotes  DevNote[]
-  items     DevNoteItem[]
-  createdAt DateTime  @default(now())
+  id              Int                  @id @default(autoincrement())
+  name            String               @unique
+  devNotes        DevNote[]
+  items           DevNoteItem[]
+  priceTableLinks PriceTableCustomer[]
+  createdAt       DateTime             @default(now())
 
   @@map("customers")
 }
@@ -89,13 +97,53 @@ model DevNoteItem {
 }
 
 model MedBatch {
-  id         Int       @id @default(autoincrement())
-  process    Process
-  createdDate   DateTime
-  volume     String    @default("500ml")
-  devNotes   DevNote[]
-  createdAt  DateTime  @default(now())
+  id          Int       @id @default(autoincrement())
+  process     Process
+  createdDate DateTime
+  volume      String    @default("500ml")
+  devNotes    DevNote[]
+  createdAt   DateTime  @default(now())
 
   @@index([process])
   @@map("med_batches")
+}
+
+model PriceTable {
+  id        Int                  @id @default(autoincrement())
+  name      String
+  isDefault Boolean              @default(false)
+  prices    ProcessingPrice[]
+  customers PriceTableCustomer[]
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@map("processing_price_tables")
+}
+
+model ProcessingPrice {
+  id           Int          @id @default(autoincrement())
+  priceTableId Int
+  priceTable   PriceTable   @relation(fields: [priceTableId], references: [id], onDelete: Cascade)
+  service      PriceService
+  process      Process
+  amount       Int
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@unique([priceTableId, service, process])
+  @@index([priceTableId])
+  @@index([process])
+  @@map("processing_prices")
+}
+
+model PriceTableCustomer {
+  priceTableId Int
+  priceTable   PriceTable @relation(fields: [priceTableId], references: [id], onDelete: Cascade)
+  customerId   Int        @unique
+  customer     Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([priceTableId, customerId])
+  @@index([priceTableId])
+  @@map("processing_price_table_customers")
 }

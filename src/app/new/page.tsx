@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, type PointerEvent } from "react";
 import {
   Box,
   Button,
@@ -77,6 +77,7 @@ type Process = keyof typeof PROCESS_LABELS;
 type DrawerState = { type: "customer" } | { type: "film"; itemKey: string };
 
 const QUANTITY_OPTIONS = [1, 2, 3, 4, 5, 6];
+const DELETE_REVEAL_WIDTH = 72;
 
 function createEmptyFilmItem(): DevNoteFilmInput {
   return {
@@ -107,6 +108,16 @@ export default function NewDevNotePage() {
   const [process, setProcess] = useState<Process | "">("");
   const [notes, setNotes] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  const [openDeleteKey, setOpenDeleteKey] = useState<string | null>(null);
+  const [dragState, setDragState] = useState<{ key: string; offset: number } | null>(null);
+  const swipeRef = useRef<{
+    key: string;
+    startX: number;
+    startY: number;
+    startOffset: number;
+    isDragging: boolean;
+  } | null>(null);
+  const suppressClickRef = useRef<string | null>(null);
 
   const [newCustomerName, setNewCustomerName] = useState("");
   const [addingCustomer, setAddingCustomer] = useState(false);
@@ -246,9 +257,12 @@ export default function NewDevNotePage() {
 
   const handleAddItem = () => {
     setItems((prev) => [...prev, createEmptyFilmItem()]);
+    setOpenDeleteKey(null);
   };
 
   const handleRemoveItem = (key: string) => {
+    setOpenDeleteKey(null);
+    setDragState(null);
     setItems((prev) => {
       if (prev.length === 1) {
         return [createEmptyFilmItem()];
@@ -303,6 +317,59 @@ export default function NewDevNotePage() {
     }
   };
 
+  const getSwipeOffset = (key: string) => {
+    if (dragState?.key === key) {
+      return dragState.offset;
+    }
+    return openDeleteKey === key ? -DELETE_REVEAL_WIDTH : 0;
+  };
+
+  const handleSwipeStart = (event: PointerEvent<HTMLDivElement>, key: string) => {
+    if (!isMobile) return;
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    swipeRef.current = {
+      key,
+      startX: event.clientX,
+      startY: event.clientY,
+      startOffset: openDeleteKey === key ? -DELETE_REVEAL_WIDTH : 0,
+      isDragging: false,
+    };
+  };
+
+  const handleSwipeMove = (event: PointerEvent<HTMLDivElement>) => {
+    const swipe = swipeRef.current;
+    if (!isMobile || !swipe) return;
+
+    const deltaX = event.clientX - swipe.startX;
+    const deltaY = event.clientY - swipe.startY;
+
+    if (!swipe.isDragging && Math.abs(deltaX) < 8) return;
+    if (!swipe.isDragging && Math.abs(deltaY) > Math.abs(deltaX)) return;
+
+    swipe.isDragging = true;
+    const nextOffset = Math.min(0, Math.max(-DELETE_REVEAL_WIDTH, swipe.startOffset + deltaX));
+    setOpenDeleteKey(swipe.key);
+    setDragState({ key: swipe.key, offset: nextOffset });
+  };
+
+  const handleSwipeEnd = () => {
+    const swipe = swipeRef.current;
+    if (!swipe) return;
+
+    const offset = dragState?.key === swipe.key ? dragState.offset : swipe.startOffset;
+    const shouldOpen = offset < -DELETE_REVEAL_WIDTH / 2;
+    if (swipe.isDragging) {
+      suppressClickRef.current = swipe.key;
+      window.setTimeout(() => {
+        suppressClickRef.current = null;
+      }, 0);
+    }
+    setOpenDeleteKey(shouldOpen ? swipe.key : null);
+    setDragState(null);
+    swipeRef.current = null;
+  };
+
   const renderFilmPicker = (item: DevNoteFilmInput) => (
     <HStack align="stretch" spacing={2}>
       <Box flex={1} minW={0}>
@@ -318,6 +385,7 @@ export default function NewDevNotePage() {
             borderColor="gray.200"
             bg="white"
             _active={{ transform: "scale(0.99)" }}
+            data-swipe-ignore
             rightIcon={
               item.filmStockId ? (
                 <CloseIcon
@@ -359,6 +427,7 @@ export default function NewDevNotePage() {
             variant="outline"
             rightIcon={<ChevronDownIcon />}
             _active={{ transform: "translateY(1px)" }}
+            data-swipe-ignore
           >
             {item.quantity}
           </Button>
@@ -400,15 +469,17 @@ export default function NewDevNotePage() {
         </PopoverContent>
       </Popover>
 
-      <IconButton
-        aria-label="Xóa dòng film"
-        icon={<DeleteIcon />}
-        onClick={() => handleRemoveItem(item.key)}
-        colorScheme="red"
-        variant="ghost"
-        minW="40px"
-        h="44px"
-      />
+      {!isMobile && (
+        <IconButton
+          aria-label="Xóa dòng film"
+          icon={<DeleteIcon />}
+          onClick={() => handleRemoveItem(item.key)}
+          colorScheme="red"
+          variant="ghost"
+          minW="40px"
+          h="44px"
+        />
+      )}
     </HStack>
   );
 
@@ -495,21 +566,75 @@ export default function NewDevNotePage() {
               {items.map((item, index) => (
                 <Box
                   key={item.key}
+                  position="relative"
+                  overflow="hidden"
                   borderWidth="1px"
-                  borderColor="gray.100"
+                  borderColor={getSwipeOffset(item.key) < 0 ? "red.100" : "gray.100"}
                   borderRadius="lg"
-                  p={{ base: 2, md: 3 }}
-                  bg={item.filmStockId ? "brand.50" : "white"}
+                  bg="transparent"
                 >
-                  <Flex justify="space-between" align="center" mb={2}>
-                    <Text fontSize="xs" fontWeight="bold" color="gray.500" textTransform="uppercase">
-                      Film {index + 1}
-                    </Text>
-                    <Text fontSize="xs" color="gray.500">
-                      Số cuộn
-                    </Text>
-                  </Flex>
-                  {renderFilmPicker(item)}
+                  {isMobile && (
+                    <Flex
+                      position="absolute"
+                      insetY={0}
+                      right={0}
+                      w={`${DELETE_REVEAL_WIDTH}px`}
+                      align="center"
+                      justify="center"
+                      bg={getSwipeOffset(item.key) < 0 ? "red.500" : "transparent"}
+                      opacity={getSwipeOffset(item.key) < 0 ? 1 : 0}
+                      transition="opacity 120ms ease"
+                    >
+                      <IconButton
+                        aria-label="Xóa dòng film"
+                        icon={<DeleteIcon />}
+                        onClick={() => handleRemoveItem(item.key)}
+                        color="white"
+                        colorScheme="red"
+                        variant="ghost"
+                        borderRadius="full"
+                        _hover={{ bg: "red.600" }}
+                        _active={{ bg: "red.700" }}
+                      />
+                    </Flex>
+                  )}
+
+                  <Box
+                    data-testid={`film-row-${index + 1}`}
+                    bg={item.filmStockId ? "brand.50" : "white"}
+                    borderRadius="lg"
+                    p={{ base: 2, md: 3 }}
+                    transform={{
+                      base: `translateX(${getSwipeOffset(item.key)}px)`,
+                      md: "translateX(0)",
+                    }}
+                    transition={dragState?.key === item.key ? "none" : "transform 180ms ease, background-color 180ms ease"}
+                    style={{ touchAction: "pan-y" }}
+                    onPointerDown={(event) => handleSwipeStart(event, item.key)}
+                    onPointerMove={handleSwipeMove}
+                    onPointerUp={handleSwipeEnd}
+                    onPointerCancel={handleSwipeEnd}
+                    onClickCapture={(event) => {
+                      if (suppressClickRef.current === item.key) {
+                        event.stopPropagation();
+                        return;
+                      }
+                      if (isMobile && openDeleteKey === item.key && !swipeRef.current?.isDragging) {
+                        setOpenDeleteKey(null);
+                        event.stopPropagation();
+                      }
+                    }}
+                  >
+                    <Flex justify="space-between" align="center" mb={2}>
+                      <Text fontSize="xs" fontWeight="bold" color="gray.500" textTransform="uppercase">
+                        Film {index + 1}
+                      </Text>
+                      <Text fontSize="xs" color="gray.500">
+                        Số cuộn
+                      </Text>
+                    </Flex>
+                    {renderFilmPicker(item)}
+                  </Box>
                 </Box>
               ))}
             </VStack>
